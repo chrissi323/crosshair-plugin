@@ -18,6 +18,9 @@ const make2160pDotCrosshair = callable<[], void>("make_2160p_dot_crosshair");
 const adjustCrosshairOffset = callable<[number, number], void>("adjust_crosshair_offset");
 const getCurrentOffsets = callable<[], number[]>("get_current_offsets");
 const removeCrosshair = callable<[], void>("remove_crosshair");
+const makeAutoCrosshair = callable<[string, number, number], [number, number, string]>(
+  "make_auto_crosshair"
+);
 
 function Content() {
   const [status, setStatus] = useState("No action yet");
@@ -100,6 +103,22 @@ function Content() {
     }
   };
 
+  const onAutoClick = async (style: "box" | "dot") => {
+    const label = style === "box" ? "Box" : "Dot";
+    try {
+      // Only used by the backend if gamescope can't be queried
+      const dpr = window.devicePixelRatio || 1;
+      const fallbackWidth = Math.round(window.screen.width * dpr);
+      const fallbackHeight = Math.round(window.screen.height * dpr);
+      const [width, height, source] = await makeAutoCrosshair(style, fallbackWidth, fallbackHeight);
+      setStatus(`Crosshair ${label} (Auto) applied for ${width}x${height} (${source})!`);
+      await fetchOffsets();
+    } catch (error) {
+      console.error(error);
+      setStatus(`Failed to apply auto ${style} crosshair.`);
+    }
+  };
+
   const onRemoveClick = async () => {
     try {
       await removeCrosshair();
@@ -133,6 +152,16 @@ function Content() {
         <div>
           NOTE: This plugin works by replacing the performance overlay with text that acts as a crosshair in your game. Currently you can not have both a performance overlay and crosshairs at the same time. To restore performance overlay, simply toggle one of the 4 levels from the QAM tab. 
         </div>
+      </PanelSectionRow>
+      <PanelSectionRow>
+        <ButtonItem layout="below" onClick={() => onAutoClick("box")}>
+          Make Crosshair Box (Auto)
+        </ButtonItem>
+      </PanelSectionRow>
+      <PanelSectionRow>
+        <ButtonItem layout="below" onClick={() => onAutoClick("dot")}>
+          Make Crosshair Dot (Auto)
+        </ButtonItem>
       </PanelSectionRow>
       <PanelSectionRow>
         <ButtonItem layout="below" onClick={on800pClick}>
