@@ -16,7 +16,7 @@ The Crosshair Plugin is a tool for the Steam Deck that overlays a crosshair on t
 3. Adjust the crosshair's position using the directional buttons (Up, Down, Left, Right).
 4. View the current offsets in the plugin UI for reference.
 
-If you switch between the built-in screen and an external display, select the crosshair again so it is re-centered for the new resolution.
+If you switch between the built-in screen and an external display, select the crosshair again so it is re-centered for the new resolution. When the resolution has changed, the plugin briefly restarts the performance overlay (`mangoapp`), because it otherwise keeps the drawing area of the display it was started on and the crosshair would be invisible on a larger display.
 
 ## How It Works
 

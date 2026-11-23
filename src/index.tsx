@@ -11,7 +11,7 @@ import { FaCrosshairs } from "react-icons/fa";
 const adjustCrosshairOffset = callable<[number, number], void>("adjust_crosshair_offset");
 const getCurrentOffsets = callable<[], number[]>("get_current_offsets");
 const removeCrosshair = callable<[], void>("remove_crosshair");
-const makeAutoCrosshair = callable<[string, number, number], [number, number, string]>(
+const makeAutoCrosshair = callable<[string, number, number], [number, number, string, boolean]>(
   "make_auto_crosshair"
 );
 
@@ -37,8 +37,15 @@ function Content() {
       const dpr = window.devicePixelRatio || 1;
       const fallbackWidth = Math.round(window.screen.width * dpr);
       const fallbackHeight = Math.round(window.screen.height * dpr);
-      const [width, height, source] = await makeAutoCrosshair(style, fallbackWidth, fallbackHeight);
-      setStatus(`Crosshair ${label} applied for ${width}x${height} (${source})!`);
+      const [width, height, source, restarted] = await makeAutoCrosshair(
+        style,
+        fallbackWidth,
+        fallbackHeight
+      );
+      setStatus(
+        `Crosshair ${label} applied for ${width}x${height} (${source})` +
+          (restarted ? ", overlay restarted!" : "!")
+      );
       await fetchOffsets();
     } catch (error) {
       console.error(error);
@@ -114,7 +121,9 @@ function Content() {
       </PanelSectionRow>
       <PanelSectionRow>
         <div>
-          Current Offsets: X = {xOffset}, Y = {yOffset}
+          Current Offsets:
+          <br />X = {xOffset}
+          <br />Y = {yOffset}
         </div>
       </PanelSectionRow>
     </PanelSection>

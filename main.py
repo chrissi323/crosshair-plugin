@@ -1,5 +1,7 @@
+import asyncio
 import os
 import re
+import signal
 import subprocess
 import decky
 
@@ -14,25 +16,53 @@ class Plugin:
         self.current_offset_x = None
         self.current_offset_y = None
         self.current_style = "box"  # Track current crosshair style: "box" or "dot"
+        # mangoapp keeps the drawing area of the display it was started on, so after
+        # switching to a larger display it must be restarted. Remembers, per mangoapp
+        # PID, the resolution it is known to be valid for.
+        self.mangoapp_resolution = {}
 
-    def find_mangoapp_environ(self):
-        """Return the environment of the running mangoapp process as a dict, or None"""
+    def find_mangoapp_pid(self):
+        """Return the PID of the running mangoapp process, or None"""
         for proc_dir in os.listdir("/proc"):
             if not proc_dir.isdigit():
                 continue
             try:
                 with open(f"/proc/{proc_dir}/cmdline", "r") as f:
-                    cmdline = f.read()
-                if "mangoapp" not in cmdline:
-                    continue
-                with open(f"/proc/{proc_dir}/environ", "r") as f:
-                    environ = f.read()
-                return dict(
-                    var.split("=", 1) for var in environ.split("\0") if "=" in var
-                )
+                    argv0 = f.read().split("\0", 1)[0]
             except (FileNotFoundError, PermissionError, IOError):
                 # Skip processes we can't read
                 continue
+            if os.path.basename(argv0) == "mangoapp":
+                return int(proc_dir)
+        return None
+
+    def find_mangoapp_environ(self):
+        """Return the environment of the running mangoapp process as a dict, or None"""
+        pid = self.find_mangoapp_pid()
+        if pid is None:
+            return None
+        try:
+            with open(f"/proc/{pid}/environ", "r") as f:
+                environ = f.read()
+        except (FileNotFoundError, PermissionError, IOError):
+            return None
+        return dict(var.split("=", 1) for var in environ.split("\0") if "=" in var)
+
+    async def restart_mangoapp(self, pid: int):
+        """Terminate mangoapp; it runs as a systemd user service and is restarted
+        automatically, picking up the current display size. Returns the new PID or None."""
+        decky.logger.info(f"Restarting mangoapp (PID {pid}) for the new display size")
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        for _ in range(40):  # wait up to 10 s
+            await asyncio.sleep(0.25)
+            new_pid = self.find_mangoapp_pid()
+            if new_pid is not None and new_pid != pid:
+                decky.logger.info(f"mangoapp restarted with PID {new_pid}")
+                return new_pid
+        decky.logger.warning("mangoapp did not come back after restart")
         return None
 
     def find_mangohud_config_path(self):
@@ -135,7 +165,7 @@ offset_y={offset_y}"""
         """Place the crosshair for the current gamescope resolution.
 
         fallback_width/height come from the frontend and are only used if
-        gamescope can't be queried. Returns [width, height, source].
+        gamescope can't be queried. Returns [width, height, source, mangoapp_restarted].
         """
         if style not in CROSSHAIR_TEXT:
             raise ValueError(f"Unknown crosshair style: {style}")
@@ -150,8 +180,18 @@ offset_y={offset_y}"""
         width, height = resolution
         self.current_offset_x, self.current_offset_y = self.compute_offsets(style, width, height)
         self.current_style = style
+        # Write first: a restarted mangoapp reads the config on startup, and while
+        # it is down the config path could not be looked up.
         await self.write_crosshair_config(*CROSSHAIR_TEXT[style], self.current_offset_x, self.current_offset_y)
-        return [width, height, source]
+
+        restarted = False
+        pid = self.find_mangoapp_pid()
+        if source == "gamescope" and pid is not None and self.mangoapp_resolution.get(pid) != resolution:
+            new_pid = await self.restart_mangoapp(pid)
+            if new_pid is not None:
+                self.mangoapp_resolution[new_pid] = resolution
+                restarted = True
+        return [width, height, source, restarted]
 
     async def remove_crosshair(self):
         self.current_offset_x = 0
