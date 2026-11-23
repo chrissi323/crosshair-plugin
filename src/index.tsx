@@ -1,5 +1,6 @@
 import {
   ButtonItem,
+  Field,
   PanelSection,
   PanelSectionRow,
   staticClasses,
@@ -15,8 +16,16 @@ const makeAutoCrosshair = callable<[string, number, number], [number, number, st
   "make_auto_crosshair"
 );
 
+// Kept outside the component: the QAM unmounts the plugin panel when it is
+// closed, which would otherwise reset the status to its initial value.
+let lastStatus = "No action yet";
+
 function Content() {
-  const [status, setStatus] = useState("No action yet");
+  const [status, setStatusState] = useState(lastStatus);
+  const setStatus = (text: string) => {
+    lastStatus = text;
+    setStatusState(text);
+  };
   const [xOffset, setXOffset] = useState(0);
   const [yOffset, setYOffset] = useState(0);
 
@@ -117,14 +126,17 @@ function Content() {
         </ButtonItem>
       </PanelSectionRow>
       <PanelSectionRow>
-        <div>Status: {status}</div>
+        <Field label="Status" childrenLayout="below">
+          {status}
+        </Field>
       </PanelSectionRow>
       <PanelSectionRow>
-        <div>
-          Current Offsets:
-          <br />X = {xOffset}
-          <br />Y = {yOffset}
-        </div>
+        <Field label="Offset X">{xOffset}</Field>
+      </PanelSectionRow>
+      <PanelSectionRow>
+        <Field label="Offset Y" bottomSeparator="none">
+          {yOffset}
+        </Field>
       </PanelSectionRow>
     </PanelSection>
   );
