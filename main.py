@@ -3,13 +3,8 @@ import re
 import subprocess
 import decky
 
-# Known resolutions keep their hand-tuned offsets; anything else is computed
-# as "screen center minus half the crosshair text size" (see compute_offsets).
-PRESET_OFFSETS = {
-    "box": {(1280, 800): (618, 380), (1920, 1080): (938, 520), (3840, 2160): (1900, 1060)},
-    "dot": {(1280, 800): (631, 380), (1920, 1080): (952, 520), (3840, 2160): (1913, 1060)},
-}
-# Half the rendered text size in pixels, derived from the presets above.
+# Half the rendered crosshair text size in pixels; the crosshair is placed at
+# "screen center minus this" (see compute_offsets).
 TEXT_HALF_SIZE = {"box": (22, 20), "dot": (9, 20)}
 CROSSHAIR_TEXT = {"box": ("-----", "| + |", "-----"), "dot": (" ", "+", " ")}
 
@@ -133,9 +128,6 @@ offset_y={offset_y}"""
 
     @staticmethod
     def compute_offsets(style: str, width: int, height: int):
-        preset = PRESET_OFFSETS[style].get((width, height))
-        if preset:
-            return preset
         half_w, half_h = TEXT_HALF_SIZE[style]
         return width // 2 - half_w, height // 2 - half_h
 
