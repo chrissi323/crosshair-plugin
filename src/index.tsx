@@ -112,6 +112,17 @@ function Content() {
         </ButtonItem>
       </PanelSectionRow>
       <PanelSectionRow>
+        <Field label="Status" childrenLayout="below">
+          {status}
+        </Field>
+      </PanelSectionRow>
+      <PanelSectionRow>
+        <Field label="Offset X">{xOffset}</Field>
+      </PanelSectionRow>
+      <PanelSectionRow>
+        <Field label="Offset Y">{yOffset}</Field>
+      </PanelSectionRow>
+      <PanelSectionRow>
         <ButtonItem layout="below" onClick={() => onOffsetClick(0, -1)}>
           Up
         </ButtonItem>
@@ -124,19 +135,6 @@ function Content() {
         <ButtonItem layout="below" onClick={() => onOffsetClick(0, 1)}>
           Down
         </ButtonItem>
-      </PanelSectionRow>
-      <PanelSectionRow>
-        <Field label="Status" childrenLayout="below">
-          {status}
-        </Field>
-      </PanelSectionRow>
-      <PanelSectionRow>
-        <Field label="Offset X">{xOffset}</Field>
-      </PanelSectionRow>
-      <PanelSectionRow>
-        <Field label="Offset Y" bottomSeparator="none">
-          {yOffset}
-        </Field>
       </PanelSectionRow>
     </PanelSection>
   );
