@@ -98,42 +98,6 @@ offset_y={offset_y}"""
             decky.logger.error(f"Error in write_crosshair_config: {str(e)}")
             raise e
 
-    async def make_800p_crosshair(self):
-        self.current_offset_x = 618
-        self.current_offset_y = 380
-        self.current_style = "box"
-        await self.write_crosshair_config("-----", "| + |", "-----", self.current_offset_x, self.current_offset_y)
-
-    async def make_1080p_crosshair(self):
-        self.current_offset_x = 938
-        self.current_offset_y = 520
-        self.current_style = "box"
-        await self.write_crosshair_config("-----", "| + |", "-----", self.current_offset_x, self.current_offset_y)
-
-    async def make_2160p_crosshair(self):
-        self.current_offset_x = 1900
-        self.current_offset_y = 1060
-        self.current_style = "box"
-        await self.write_crosshair_config("-----", "| + |", "-----", self.current_offset_x, self.current_offset_y)
-
-    async def make_800p_dot_crosshair(self):
-        self.current_offset_x = 631
-        self.current_offset_y = 380
-        self.current_style = "dot"
-        await self.write_crosshair_config(" ", "+", " ", self.current_offset_x, self.current_offset_y)
-
-    async def make_1080p_dot_crosshair(self):
-        self.current_offset_x = 952
-        self.current_offset_y = 520
-        self.current_style = "dot"
-        await self.write_crosshair_config(" ", "+", " ", self.current_offset_x, self.current_offset_y)
-
-    async def make_2160p_dot_crosshair(self):
-        self.current_offset_x = 1913
-        self.current_offset_y = 1060
-        self.current_style = "dot"
-        await self.write_crosshair_config(" ", "+", " ", self.current_offset_x, self.current_offset_y)
-
     def get_gamescope_resolution(self):
         """Query the current screen size of gamescope's Xwayland via xrandr.
 
@@ -211,11 +175,7 @@ offset_y={offset_y}"""
         self.current_offset_x += x_delta
         self.current_offset_y += y_delta
 
-        # Use the appropriate crosshair style when adjusting
-        if self.current_style == "dot":
-            await self.write_crosshair_config(" ", "+", " ", self.current_offset_x, self.current_offset_y)
-        else:  # box style
-            await self.write_crosshair_config("-----", "| + |", "-----", self.current_offset_x, self.current_offset_y)
+        await self.write_crosshair_config(*CROSSHAIR_TEXT[self.current_style], self.current_offset_x, self.current_offset_y)
 
     async def get_current_offsets(self) -> list:
         if self.current_offset_x is None:

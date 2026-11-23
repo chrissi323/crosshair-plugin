@@ -4,11 +4,7 @@ The Crosshair Plugin is a tool for the Steam Deck that overlays a crosshair on t
 
 ## Features
 
-- **Auto mode**: detects the current gamescope resolution and centers the crosshair automatically, including on resolutions without a preset (e.g. 1440p, ultrawide).
-- Predefined crosshairs for:
-  - **800p** (Steam Deck native resolution)
-  - **1080p** (external display support)
-  - **2160p** (4K external displays)
+- Detects the current gamescope resolution and centers the crosshair automatically — on the built-in screen as well as on external displays of any resolution (1080p, 1440p, 4K, ultrawide, ...).
 - Two styles: **Box** and **Dot**.
 - Adjustable offsets to fine-tune the crosshair's position.
 - Displays the current x and y offsets in the UI.
@@ -16,17 +12,16 @@ The Crosshair Plugin is a tool for the Steam Deck that overlays a crosshair on t
 ## Usage
 
 1. Open the plugin from Decky Loader.
-2. Select a crosshair:
-   - **Auto**: uses the current resolution. The status line shows the detected resolution and its source (`gamescope`, or `fallback` if gamescope could not be queried).
-   - **800p**: For the Steam Deck's built-in screen.
-   - **1080p** / **2160p**: For external displays.
+2. Select **Make Crosshair Box** or **Make Crosshair Dot**. The status line shows the detected resolution and its source (`gamescope`, or `fallback` if gamescope could not be queried).
 3. Adjust the crosshair's position using the directional buttons (Up, Down, Left, Right).
 4. View the current offsets in the plugin UI for reference.
+
+If you switch between the built-in screen and an external display, select the crosshair again so it is re-centered for the new resolution.
 
 ## How It Works
 
 - The plugin generates a MangoHud configuration file with the crosshair settings.
-- Auto mode reads the screen size of gamescope's Xwayland via `xrandr` and places the crosshair at the screen center.
+- The plugin reads the screen size of gamescope's Xwayland via `xrandr` and places the crosshair at the screen center.
 - Offset adjustments are handled dynamically, and the configuration is updated automatically.
 - NOTE: this may conflict with any MangoHUD overrides you have set, or override plugins such as MangoPeel.
 

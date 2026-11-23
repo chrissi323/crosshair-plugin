@@ -8,13 +8,6 @@ import { callable, definePlugin } from "@decky/api";
 import { useState, useEffect } from "react";
 import { FaCrosshairs } from "react-icons/fa";
 
-// Existing Python methods
-const make800pCrosshair = callable<[], void>("make_800p_crosshair");
-const make1080pCrosshair = callable<[], void>("make_1080p_crosshair");
-const make2160pCrosshair = callable<[], void>("make_2160p_crosshair");
-const make800pDotCrosshair = callable<[], void>("make_800p_dot_crosshair");
-const make1080pDotCrosshair = callable<[], void>("make_1080p_dot_crosshair");
-const make2160pDotCrosshair = callable<[], void>("make_2160p_dot_crosshair");
 const adjustCrosshairOffset = callable<[number, number], void>("adjust_crosshair_offset");
 const getCurrentOffsets = callable<[], number[]>("get_current_offsets");
 const removeCrosshair = callable<[], void>("remove_crosshair");
@@ -37,72 +30,6 @@ function Content() {
     }
   };
 
-  const on800pClick = async () => {
-    try {
-      await make800pCrosshair();
-      setStatus("Crosshair Box (800p) applied!");
-      await fetchOffsets();
-    } catch (error) {
-      console.error(error);
-      setStatus("Failed to apply 800p crosshair.");
-    }
-  };
-
-  const on1080pClick = async () => {
-    try {
-      await make1080pCrosshair();
-      setStatus("Crosshair Box for 1080p applied!");
-      await fetchOffsets();
-    } catch (error) {
-      console.error(error);
-      setStatus("Failed to apply 1080p crosshair.");
-    }
-  };
-
-   const on2160pClick = async () => {
-    try {
-      await make2160pCrosshair();
-      setStatus("Crosshair Box for 2160p applied!");
-      await fetchOffsets();
-    } catch (error) {
-      console.error(error);
-      setStatus("Failed to apply 2160p crosshair.");
-    }
-  };
-
-  const on800pDotClick = async () => {
-    try {
-      await make800pDotCrosshair();
-      setStatus("Crosshair Dot (800p) applied!");
-      await fetchOffsets();
-    } catch (error) {
-      console.error(error);
-      setStatus("Failed to apply 800p dot crosshair.");
-    }
-  };
-
-  const on1080pDotClick = async () => {
-    try {
-      await make1080pDotCrosshair();
-      setStatus("Crosshair Dot for 1080p applied!");
-      await fetchOffsets();
-    } catch (error) {
-      console.error(error);
-      setStatus("Failed to apply 1080p dot crosshair.");
-    }
-  };
-
-  const on2160pDotClick = async () => {
-    try {
-      await make2160pDotCrosshair();
-      setStatus("Crosshair Dot for 2160p applied!");
-      await fetchOffsets();
-    } catch (error) {
-      console.error(error);
-      setStatus("Failed to apply 2160p dot crosshair.");
-    }
-  };
-
   const onAutoClick = async (style: "box" | "dot") => {
     const label = style === "box" ? "Box" : "Dot";
     try {
@@ -111,11 +38,11 @@ function Content() {
       const fallbackWidth = Math.round(window.screen.width * dpr);
       const fallbackHeight = Math.round(window.screen.height * dpr);
       const [width, height, source] = await makeAutoCrosshair(style, fallbackWidth, fallbackHeight);
-      setStatus(`Crosshair ${label} (Auto) applied for ${width}x${height} (${source})!`);
+      setStatus(`Crosshair ${label} applied for ${width}x${height} (${source})!`);
       await fetchOffsets();
     } catch (error) {
       console.error(error);
-      setStatus(`Failed to apply auto ${style} crosshair.`);
+      setStatus(`Failed to apply ${style} crosshair.`);
     }
   };
 
@@ -155,42 +82,12 @@ function Content() {
       </PanelSectionRow>
       <PanelSectionRow>
         <ButtonItem layout="below" onClick={() => onAutoClick("box")}>
-          Make Crosshair Box (Auto)
+          Make Crosshair Box
         </ButtonItem>
       </PanelSectionRow>
       <PanelSectionRow>
         <ButtonItem layout="below" onClick={() => onAutoClick("dot")}>
-          Make Crosshair Dot (Auto)
-        </ButtonItem>
-      </PanelSectionRow>
-      <PanelSectionRow>
-        <ButtonItem layout="below" onClick={on800pClick}>
-          Make Crosshair Box (800p)
-        </ButtonItem>
-      </PanelSectionRow>
-      <PanelSectionRow>
-        <ButtonItem layout="below" onClick={on800pDotClick}>
-          Make Crosshair Dot (800p)
-        </ButtonItem>
-      </PanelSectionRow>
-      <PanelSectionRow>
-        <ButtonItem layout="below" onClick={on1080pClick}>
-          Make Crosshair Box (1080p)
-        </ButtonItem>
-      </PanelSectionRow>
-      <PanelSectionRow>
-        <ButtonItem layout="below" onClick={on1080pDotClick}>
-          Make Crosshair Dot (1080p)
-        </ButtonItem>
-      </PanelSectionRow>
-      <PanelSectionRow>
-        <ButtonItem layout="below" onClick={on2160pClick}>
-          Make Crosshair Box (2160p)
-        </ButtonItem>
-      </PanelSectionRow>
-      <PanelSectionRow>
-        <ButtonItem layout="below" onClick={on2160pDotClick}>
-          Make Crosshair Dot (2160p)
+          Make Crosshair Dot
         </ButtonItem>
       </PanelSectionRow>
       <PanelSectionRow>
