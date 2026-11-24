@@ -3,10 +3,11 @@ import {
   Field,
   PanelSection,
   PanelSectionRow,
+  SliderField,
   staticClasses,
 } from "@decky/ui";
 import { callable, definePlugin } from "@decky/api";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FaCrosshairs } from "react-icons/fa";
 
 type Style = "box" | "dot";
@@ -35,29 +36,39 @@ const setNudgeStep = callable<[number], void>("set_nudge_step");
 const adjustCrosshairOffset = callable<[number, number], void>("adjust_crosshair_offset");
 const removeCrosshair = callable<[], void>("remove_crosshair");
 
-const RESOLUTION_OPTIONS = [
-  { data: "auto", label: "Auto-detect" },
-  { data: "1280x800", label: "1280 x 800 (Steam Deck)" },
-  { data: "1920x1080", label: "1920 x 1080" },
-  { data: "1920x1200", label: "1920 x 1200" },
-  { data: "2560x1440", label: "2560 x 1440" },
-  { data: "2560x1600", label: "2560 x 1600" },
-  { data: "3840x2160", label: "3840 x 2160 (4K)" },
-];
-const STEP_OPTIONS = [1, 5, 10, 50].map((n) => ({ data: n, label: `${n} px` }));
-
 interface Option<T> {
   data: T;
-  label: string;
+  label: string; // shown in the slider title
+  short: string; // shown under the slider notch
 }
+
+const RESOLUTION_OPTIONS: Option<string>[] = [
+  { data: "auto", label: "Auto-detect", short: "Auto" },
+  { data: "1280x800", label: "1280 x 800 (Steam Deck)", short: "800p" },
+  { data: "1920x1080", label: "1920 x 1080", short: "1080p" },
+  { data: "1920x1200", label: "1920 x 1200", short: "1200p" },
+  { data: "2560x1440", label: "2560 x 1440", short: "1440p" },
+  { data: "2560x1600", label: "2560 x 1600", short: "1600p" },
+  { data: "3840x2160", label: "3840 x 2160 (4K)", short: "4K" },
+];
+const STEP_OPTIONS: Option<number>[] = [1, 5, 10, 50].map((n) => ({
+  data: n,
+  label: `${n} px`,
+  short: `${n}`,
+}));
+
+// Wait this long after the last slider move before calling the backend, so
+// scrolling through the options doesn't re-place the crosshair for each one.
+const CHOICE_DEBOUNCE_MS = 400;
 
 const optionLabel = <T,>(options: Option<T>[], value: T) =>
   options.find((option) => option.data === value)?.label ?? String(value);
 
-// A button showing the current value; each press switches to the next option.
+// A notched slider for picking one of a few options; on the Deck it is changed
+// with left/right on the D-pad, like the QAM's performance overlay level.
 // Popups (Steam's DropdownItem, showContextMenu) are avoided on purpose: after a
 // choice in a popup the QAM panel didn't re-render until the next input in it.
-function CycleItem<T>(props: {
+function ChoiceSlider<T>(props: {
   label: string;
   description?: string;
   options: Option<T>[];
@@ -65,17 +76,25 @@ function CycleItem<T>(props: {
   onChange(value: T): void;
 }) {
   const { label, description, options, value, onChange } = props;
-  const index = options.findIndex((option) => option.data === value);
-  const next = options[(index + 1) % options.length];
+  const index = Math.max(0, options.findIndex((option) => option.data === value));
   return (
-    <ButtonItem
-      layout="below"
-      label={label}
+    <SliderField
+      label={`${label}: ${optionLabel(options, value)}`}
       description={description}
-      onClick={() => onChange(next.data)}
-    >
-      {optionLabel(options, value)}
-    </ButtonItem>
+      value={index}
+      min={0}
+      max={options.length - 1}
+      step={1}
+      notchCount={options.length}
+      notchLabels={options.map((option, i) => ({ notchIndex: i, label: option.short, value: i }))}
+      notchTicksVisible={true}
+      showValue={false}
+      validValues="steps"
+      onChange={(i) => {
+        const option = options[i];
+        if (option && option.data !== value) onChange(option.data);
+      }}
+    />
   );
 }
 
@@ -89,7 +108,7 @@ const fallbackSize = (): [number, number] => {
 const describe = (action: string, [width, height, source, restarted]: PlaceResult) =>
   `${action} for ${width}x${height} (${source})` + (restarted ? ", overlay restarted!" : "!");
 
-// Text under the resolution button explaining what the current choice does
+// Text under the resolution slider explaining what the current choice does
 const resolutionHint = (state: PluginState | null) => {
   if (!state) return undefined;
   const placed = state.active ? state.last_placement : null;
@@ -140,6 +159,13 @@ function Content() {
     refresh();
   }, []);
 
+  // Runs `action` once no new call for the same key came in for CHOICE_DEBOUNCE_MS
+  const timers = useRef<Record<string, number>>({});
+  const debounced = (key: string, action: () => void) => {
+    window.clearTimeout(timers.current[key]);
+    timers.current[key] = window.setTimeout(action, CHOICE_DEBOUNCE_MS);
+  };
+
   const step = state?.nudge_step ?? 5;
   const nudge = (dx: number, dy: number) =>
     run(async () => {
@@ -155,19 +181,21 @@ function Content() {
         </div>
       </PanelSectionRow>
       <PanelSectionRow>
-        <CycleItem
+        <ChoiceSlider
           label="Screen resolution"
           description={resolutionHint(state)}
           options={RESOLUTION_OPTIONS}
           value={state?.resolution_mode ?? "auto"}
           onChange={(mode) => {
             setState((prev) => (prev ? { ...prev, resolution_mode: mode } : prev));
-            run(async () => {
-              const result = await setResolutionMode(mode, ...fallbackSize());
-              return result
-                ? describe("Crosshair re-placed", result)
-                : `Screen resolution set to ${mode}`;
-            }, "Failed to set screen resolution.");
+            debounced("resolution", () =>
+              run(async () => {
+                const result = await setResolutionMode(mode, ...fallbackSize());
+                return result
+                  ? describe("Crosshair re-placed", result)
+                  : `Screen resolution set to ${mode}`;
+              }, "Failed to set screen resolution.")
+            );
           }}
         />
       </PanelSectionRow>
@@ -231,16 +259,18 @@ function Content() {
         <Field label="Correction">{state ? `${state.nudge_x}, ${state.nudge_y}` : "-"}</Field>
       </PanelSectionRow>
       <PanelSectionRow>
-        <CycleItem
+        <ChoiceSlider
           label="Nudge step"
           options={STEP_OPTIONS}
           value={step}
           onChange={(newStep) => {
             setState((prev) => (prev ? { ...prev, nudge_step: newStep } : prev));
-            run(async () => {
-              await setNudgeStep(newStep);
-              return `Nudge step set to ${newStep} px`;
-            }, "Failed to set nudge step.");
+            debounced("step", () =>
+              run(async () => {
+                await setNudgeStep(newStep);
+                return `Nudge step set to ${newStep} px`;
+              }, "Failed to set nudge step.")
+            );
           }}
         />
       </PanelSectionRow>
