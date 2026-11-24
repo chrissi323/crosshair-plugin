@@ -7,7 +7,7 @@ import {
   staticClasses,
 } from "@decky/ui";
 import { callable, definePlugin } from "@decky/api";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, ReactNode } from "react";
 import { FaCrosshairs } from "react-icons/fa";
 
 type Style = "box" | "dot";
@@ -70,7 +70,7 @@ const optionLabel = <T,>(options: Option<T>[], value: T) =>
 // choice in a popup the QAM panel didn't re-render until the next input in it.
 function ChoiceSlider<T>(props: {
   label: string;
-  description?: string;
+  description?: ReactNode;
   options: Option<T>[];
   value: T;
   onChange(value: T): void;
@@ -109,17 +109,22 @@ const describe = (action: string, [width, height, source, restarted]: PlaceResul
   `${action} for ${width}x${height} (${source})` + (restarted ? ", overlay restarted!" : "!");
 
 // Text under the resolution slider explaining what the current choice does
-const resolutionHint = (state: PluginState | null) => {
+// Always two lines, so the row keeps its height whatever the resolution is.
+const resolutionHint = (state: PluginState | null): ReactNode => {
   if (!state) return undefined;
   const placed = state.active ? state.last_placement : null;
-  if (state.resolution_mode === "auto") {
-    return placed
-      ? `Crosshair centered for ${placed[0]}x${placed[1]} (${placed[2]})`
-      : "Uses the resolution reported by gamescope";
-  }
-  return placed
-    ? `Crosshair centered for ${placed[0]}x${placed[1]} (manual)`
-    : `Fixed: next crosshair is centered for ${state.resolution_mode}`;
+  const [first, second] = placed
+    ? ["Crosshair centered for", `${placed[0]}x${placed[1]} (${placed[2]})`]
+    : state.resolution_mode === "auto"
+    ? ["Uses the resolution", "reported by gamescope"]
+    : ["Next crosshair centered for", state.resolution_mode];
+  return (
+    <>
+      {first}
+      <br />
+      {second}
+    </>
+  );
 };
 
 const styleLabel = (style: Style) => (style === "box" ? "Box" : "Dot");
