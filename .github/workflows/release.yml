@@ -1,13 +1,24 @@
 name: Release
 
+# - Push to the dev branch: untested test build, published as the pre-release
+#   "dev-build" (tag moved to the pushed commit, zip replaced each time).
+# - Push of a version tag vX.Y.Z: stable release with the zip attached.
+# - Manual run: zip only uploaded as a workflow artifact.
+
 on:
   push:
+    branches:
+      - dev
     tags:
       - "v*"
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -38,8 +49,29 @@ jobs:
           name: Crosshair
           path: out/Crosshair.zip
 
-      - uses: softprops/action-gh-release@v2
+      - name: Move dev-build tag to this commit
+        if: github.ref == 'refs/heads/dev'
+        run: |
+          git tag -f dev-build
+          git push -f origin refs/tags/dev-build
+
+      - name: Publish test build
+        if: github.ref == 'refs/heads/dev'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dev-build
+          name: Development build (untested)
+          prerelease: true
+          make_latest: false
+          files: out/Crosshair.zip
+          body: |
+            Untested test build of the `dev` branch at ${{ github.sha }}.
+            Replaced on every push to `dev`; not meant for regular use.
+
+      - name: Publish stable release
         if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
         with:
           files: out/Crosshair.zip
           generate_release_notes: true
+          make_latest: true

@@ -12,7 +12,10 @@ A [Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader) plugin for t
 - Build frontend (outputs `dist/index.js`): `pnpm build` (or `pnpm watch`)
 - Full plugin package: `./build-zip.sh` → `out/Crosshair.zip` (needs only pnpm + python3; `--skip-frontend` reuses an existing `dist/`). It zips `dist/index.js`, `main.py`, `plugin.json`, `package.json`, `LICENSE`, `README.md` under a top-level folder named after `plugin.json`'s `name` — if you add files the backend needs at runtime, add them to the script too.
 - Alternative: `.vscode/build.sh` runs `sudo decky plugin build` using the Decky CLI expected at `./cli/decky` (gitignored; requires Docker).
-- Release: bump `version` in `package.json`, commit, then push a matching tag (`git tag -a vX.Y.Z -m "Release X.Y.Z" && git push origin main vX.Y.Z`). `.github/workflows/release.yml` builds the zip via `build-zip.sh` and attaches it to a GitHub release; it fails if the tag doesn't match `package.json`. A manual run (`workflow_dispatch`) only uploads the zip as a workflow artifact.
+- Branches and releases (`.github/workflows/release.yml`):
+  - `main` = stable, matches the latest release. Untested work goes to `dev`; every push to `dev` builds the zip and replaces the asset of the pre-release `dev-build` (tag moved to that commit), downloadable at `https://github.com/chrissi323/crosshair-plugin/releases/download/dev-build/Crosshair.zip`. The user tests that on the Steam Deck (nothing can be tested on-device here).
+  - Only after the user confirms a dev build works: fast-forward `main` to `dev`, bump `version` in `package.json`, commit, push a matching tag (`git tag -a vX.Y.Z -m "Release X.Y.Z" && git push origin main vX.Y.Z`) → stable release with the zip; fails if the tag doesn't match `package.json`. Don't tag intermediate fixes.
+  - A manual run (`workflow_dispatch`) only uploads the zip as a workflow artifact.
 - Deploy to a Deck: VS Code tasks in `.vscode/tasks.json` (`builddeploy`, `deploy`) rsync/ssh using values from `.vscode/settings.json` (copy from `.vscode/defsettings.json`; `settings.json` is gitignored).
 
 There are no tests or linters configured; `tsc` type checking happens through the rollup build (`@decky/rollup`).

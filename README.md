@@ -33,6 +33,8 @@ If you switch between the built-in screen and an external display, select the cr
 
 Ready-to-install zips are attached to each [GitHub release](https://github.com/chrissi323/crosshair-plugin/releases). Install one on the Steam Deck by enabling Developer Mode in Decky Loader's settings and using **Install Plugin from ZIP File** (or install it from the release asset's URL).
 
+Untested development builds of the `dev` branch are published as the pre-release [dev-build](https://github.com/chrissi323/crosshair-plugin/releases/tag/dev-build). Use them only for testing.
+
 ## Building
 
 Requirements: [pnpm](https://pnpm.io/) and Python 3.
