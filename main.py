@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import re
 import signal
@@ -9,13 +10,23 @@ import decky
 # "screen center minus this" (see compute_offsets).
 TEXT_HALF_SIZE = {"box": (22, 20), "dot": (9, 20)}
 CROSSHAIR_TEXT = {"box": ("-----", "| + |", "-----"), "dot": (" ", "+", " ")}
+NUDGE_STEPS = (1, 5, 10, 50)
+# Persisted between plugin reloads and reboots (see load_settings/save_settings).
+DEFAULT_SETTINGS = {
+    "style": "box",
+    "nudge_x": 0,  # manual correction relative to the computed screen center
+    "nudge_y": 0,
+    "nudge_step": 5,
+    "resolution_mode": "auto",  # "auto" or "WIDTHxHEIGHT"
+}
 
 
 class Plugin:
     def __init__(self):
+        # Offsets of the crosshair currently written to the config, None if none is shown
         self.current_offset_x = None
         self.current_offset_y = None
-        self.current_style = "box"  # Track current crosshair style: "box" or "dot"
+        self.settings = dict(DEFAULT_SETTINGS)
         # mangoapp keeps the drawing area of the display it was started on, so after
         # switching to a larger display it must be restarted. Remembers, per mangoapp
         # PID, the resolution it is known to be valid for.
@@ -156,67 +167,154 @@ offset_y={offset_y}"""
             decky.logger.warning(f"xrandr on {display} gave no resolution: {result.stderr.strip()}")
         return None
 
+    # ------------------------------------------------------------------ #
+    # Settings persistence
+    # ------------------------------------------------------------------ #
+    def settings_path(self):
+        return os.path.join(decky.DECKY_PLUGIN_SETTINGS_DIR, "settings.json")
+
+    def load_settings(self):
+        try:
+            with open(self.settings_path(), "r") as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            return
+        except (OSError, ValueError) as e:
+            decky.logger.error(f"Could not load settings: {e}")
+            return
+        for key, default in DEFAULT_SETTINGS.items():
+            if isinstance(data.get(key), type(default)):
+                self.settings[key] = data[key]
+        if self.settings["style"] not in CROSSHAIR_TEXT:
+            self.settings["style"] = DEFAULT_SETTINGS["style"]
+        if self.settings["nudge_step"] not in NUDGE_STEPS:
+            self.settings["nudge_step"] = DEFAULT_SETTINGS["nudge_step"]
+        if self.parse_resolution_mode(self.settings["resolution_mode"]) is None:
+            self.settings["resolution_mode"] = "auto"
+
+    def save_settings(self):
+        try:
+            path = self.settings_path()
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w") as f:
+                json.dump(self.settings, f)
+        except OSError as e:
+            decky.logger.error(f"Could not save settings: {e}")
+
+    @staticmethod
+    def parse_resolution_mode(mode: str):
+        """"auto" -> "auto", "WIDTHxHEIGHT" -> (width, height), anything else -> None"""
+        if mode == "auto":
+            return "auto"
+        match = re.fullmatch(r"(\d+)x(\d+)", mode or "")
+        if not match:
+            return None
+        return int(match.group(1)), int(match.group(2))
+
+    # ------------------------------------------------------------------ #
+    # Placing the crosshair
+    # ------------------------------------------------------------------ #
     @staticmethod
     def compute_offsets(style: str, width: int, height: int):
         half_w, half_h = TEXT_HALF_SIZE[style]
         return width // 2 - half_w, height // 2 - half_h
 
-    async def make_auto_crosshair(self, style: str, fallback_width: int, fallback_height: int) -> list:
-        """Place the crosshair for the current gamescope resolution.
+    async def place_crosshair(self, fallback_width: int, fallback_height: int) -> list:
+        """Write the crosshair for the current style and nudge at the screen center.
 
-        fallback_width/height come from the frontend and are only used if
-        gamescope can't be queried. Returns [width, height, source, mangoapp_restarted].
+        The resolution comes from the manual override, else gamescope, else the
+        frontend's fallback_width/height. Returns [width, height, source, mangoapp_restarted].
         """
-        if style not in CROSSHAIR_TEXT:
-            raise ValueError(f"Unknown crosshair style: {style}")
-
-        resolution = self.get_gamescope_resolution()
-        source = "gamescope"
-        if resolution is None:
-            resolution = (int(fallback_width), int(fallback_height))
-            source = "fallback"
+        style = self.settings["style"]
+        detected = self.get_gamescope_resolution()
+        override = self.parse_resolution_mode(self.settings["resolution_mode"])
+        if isinstance(override, tuple):
+            resolution, source = override, "manual"
+        elif detected is not None:
+            resolution, source = detected, "gamescope"
+        else:
+            resolution, source = (int(fallback_width), int(fallback_height)), "fallback"
             decky.logger.warning(f"Using frontend fallback resolution {resolution}")
 
         width, height = resolution
-        self.current_offset_x, self.current_offset_y = self.compute_offsets(style, width, height)
-        self.current_style = style
+        center_x, center_y = self.compute_offsets(style, width, height)
+        self.current_offset_x = center_x + self.settings["nudge_x"]
+        self.current_offset_y = center_y + self.settings["nudge_y"]
         # Write first: a restarted mangoapp reads the config on startup, and while
         # it is down the config path could not be looked up.
         await self.write_crosshair_config(*CROSSHAIR_TEXT[style], self.current_offset_x, self.current_offset_y)
 
+        # The restart depends on the real display size, not on a manual override.
         restarted = False
         pid = self.find_mangoapp_pid()
-        if source == "gamescope" and pid is not None and self.mangoapp_resolution.get(pid) != resolution:
+        if detected is not None and pid is not None and self.mangoapp_resolution.get(pid) != detected:
             new_pid = await self.restart_mangoapp(pid)
             if new_pid is not None:
-                self.mangoapp_resolution[new_pid] = resolution
+                self.mangoapp_resolution[new_pid] = detected
                 restarted = True
         return [width, height, source, restarted]
 
+    # ------------------------------------------------------------------ #
+    # Methods called from the frontend
+    # ------------------------------------------------------------------ #
+    async def get_state(self) -> dict:
+        return {
+            **self.settings,
+            "active": self.current_offset_x is not None,
+            "offset_x": self.current_offset_x,
+            "offset_y": self.current_offset_y,
+        }
+
+    async def make_crosshair(self, style: str, fallback_width: int, fallback_height: int) -> list:
+        if style not in CROSSHAIR_TEXT:
+            raise ValueError(f"Unknown crosshair style: {style}")
+        self.settings["style"] = style
+        self.save_settings()
+        return await self.place_crosshair(fallback_width, fallback_height)
+
+    async def recenter_crosshair(self, fallback_width: int, fallback_height: int) -> list:
+        self.settings["nudge_x"] = 0
+        self.settings["nudge_y"] = 0
+        self.save_settings()
+        return await self.place_crosshair(fallback_width, fallback_height)
+
+    async def set_resolution_mode(self, mode: str, fallback_width: int, fallback_height: int):
+        """Change the resolution override; re-places a visible crosshair. Returns
+        the place_crosshair result, or None if no crosshair is shown."""
+        if self.parse_resolution_mode(mode) is None:
+            raise ValueError(f"Invalid resolution mode: {mode}")
+        self.settings["resolution_mode"] = mode
+        self.save_settings()
+        if self.current_offset_x is None:
+            return None
+        return await self.place_crosshair(fallback_width, fallback_height)
+
+    async def set_nudge_step(self, step: int):
+        if step not in NUDGE_STEPS:
+            raise ValueError(f"Invalid nudge step: {step}")
+        self.settings["nudge_step"] = step
+        self.save_settings()
+
     async def remove_crosshair(self):
-        self.current_offset_x = 0
-        self.current_offset_y = 0
-        await self.write_crosshair_config("", "", "", self.current_offset_x, self.current_offset_y)
+        self.current_offset_x = None
+        self.current_offset_y = None
+        await self.write_crosshair_config("", "", "", 0, 0)
 
     async def adjust_crosshair_offset(self, x_delta: int, y_delta: int):
+        """Move the crosshair; the correction is saved and kept for later placements."""
+        self.settings["nudge_x"] += int(x_delta)
+        self.settings["nudge_y"] += int(y_delta)
+        self.save_settings()
         if self.current_offset_x is None:
-            self.current_offset_x = 640
-        if self.current_offset_y is None:
-            self.current_offset_y = 400
-
-        self.current_offset_x += x_delta
-        self.current_offset_y += y_delta
-
-        await self.write_crosshair_config(*CROSSHAIR_TEXT[self.current_style], self.current_offset_x, self.current_offset_y)
-
-    async def get_current_offsets(self) -> list:
-        if self.current_offset_x is None:
-            self.current_offset_x = 640
-        if self.current_offset_y is None:
-            self.current_offset_y = 400
-        return [self.current_offset_x, self.current_offset_y]
+            return
+        self.current_offset_x += int(x_delta)
+        self.current_offset_y += int(y_delta)
+        await self.write_crosshair_config(
+            *CROSSHAIR_TEXT[self.settings["style"]], self.current_offset_x, self.current_offset_y
+        )
 
     async def _main(self):
+        self.load_settings()
         decky.logger.info("Crosshair Plugin initialized!")
 
     async def _unload(self):
