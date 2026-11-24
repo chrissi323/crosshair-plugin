@@ -47,6 +47,11 @@ const RESOLUTION_OPTIONS = [
 ];
 const STEP_OPTIONS = [1, 5, 10, 50].map((n) => ({ data: n, label: `${n} px` }));
 
+// Steam's dropdown keeps its own selection and doesn't reliably follow
+// `selectedOption`, so the shown value is rendered from our state instead.
+const optionLabel = (options: { data: unknown; label: string }[], value: unknown) =>
+  options.find((option) => option.data === value)?.label ?? String(value);
+
 // Screen size as seen by the Steam client; only used by the backend if
 // gamescope can't be queried.
 const fallbackSize = (): [number, number] => {
@@ -132,6 +137,7 @@ function Content() {
           description={resolutionHint(state)}
           rgOptions={RESOLUTION_OPTIONS}
           selectedOption={state?.resolution_mode ?? "auto"}
+          renderButtonValue={() => optionLabel(RESOLUTION_OPTIONS, state?.resolution_mode ?? "auto")}
           onChange={(option) => {
             if (option.data === state?.resolution_mode) return;
             // Show the new choice right away, act on it once the menu has closed
@@ -213,6 +219,7 @@ function Content() {
           label="Nudge step"
           rgOptions={STEP_OPTIONS}
           selectedOption={step}
+          renderButtonValue={() => optionLabel(STEP_OPTIONS, step)}
           onChange={(option) => {
             if (option.data === step) return;
             setState((prev) => (prev ? { ...prev, nudge_step: option.data } : prev));
