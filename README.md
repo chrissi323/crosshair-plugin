@@ -16,9 +16,9 @@ The Crosshair Plugin is a tool for the Steam Deck that overlays a crosshair on t
 ## Usage
 
 1. Open the plugin from Decky Loader.
-2. Leave **Screen resolution** on *Auto-detect* (or pick your screen if the crosshair ends up off-center).
+2. Leave **Screen resolution** on *Auto-detect*. If the crosshair ends up off-center, press it to step through fixed resolutions until yours is shown.
 3. Select **Make Crosshair Box** or **Make Crosshair Dot**. The status line shows the resolution used and its source (`gamescope`, `manual`, or `fallback` if gamescope could not be queried).
-4. If needed, choose a **Nudge step** and move the crosshair with the directional buttons (Up, Left, Right, Down). **Re-center** puts it back in the middle.
+4. If needed, press **Nudge step** to pick the step size and move the crosshair with the directional buttons (Up, Left, Right, Down). **Re-center** puts it back in the middle.
 
 If you switch between the built-in screen and an external display, select the crosshair again so it is re-centered for the new resolution. When the resolution has changed, the plugin briefly restarts the performance overlay (`mangoapp`), because it otherwise keeps the drawing area of the display it was started on and the crosshair would be invisible on a larger display.
 

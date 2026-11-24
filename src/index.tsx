@@ -1,11 +1,8 @@
 import {
   ButtonItem,
   Field,
-  Menu,
-  MenuItem,
   PanelSection,
   PanelSectionRow,
-  showContextMenu,
   staticClasses,
 } from "@decky/ui";
 import { callable, definePlugin } from "@decky/api";
@@ -57,40 +54,25 @@ interface Option<T> {
 const optionLabel = <T,>(options: Option<T>[], value: T) =>
   options.find((option) => option.data === value)?.label ?? String(value);
 
-// A button that shows the current value and opens a menu to pick another one.
-// Used instead of Steam's DropdownItem, whose label only updated after the
-// panel was re-focused, not when the value changed.
-function ChoiceItem<T>(props: {
+// A button showing the current value; each press switches to the next option.
+// Popups (Steam's DropdownItem, showContextMenu) are avoided on purpose: after a
+// choice in a popup the QAM panel didn't re-render until the next input in it.
+function CycleItem<T>(props: {
   label: string;
   description?: string;
   options: Option<T>[];
   value: T;
-  onChoose(value: T): void;
+  onChange(value: T): void;
 }) {
-  const { label, description, options, value, onChoose } = props;
+  const { label, description, options, value, onChange } = props;
+  const index = options.findIndex((option) => option.data === value);
+  const next = options[(index + 1) % options.length];
   return (
     <ButtonItem
-      layout="inline"
+      layout="below"
       label={label}
       description={description}
-      onClick={(event) =>
-        showContextMenu(
-          <Menu label={label}>
-            {options.map((option) => (
-              <MenuItem
-                key={String(option.data)}
-                selected={option.data === value}
-                onSelected={() => {
-                  if (option.data !== value) onChoose(option.data);
-                }}
-              >
-                {option.label}
-              </MenuItem>
-            ))}
-          </Menu>,
-          event.currentTarget ?? window
-        )
-      }
+      onClick={() => onChange(next.data)}
     >
       {optionLabel(options, value)}
     </ButtonItem>
@@ -107,7 +89,7 @@ const fallbackSize = (): [number, number] => {
 const describe = (action: string, [width, height, source, restarted]: PlaceResult) =>
   `${action} for ${width}x${height} (${source})` + (restarted ? ", overlay restarted!" : "!");
 
-// Text under the resolution dropdown explaining what the current choice does
+// Text under the resolution button explaining what the current choice does
 const resolutionHint = (state: PluginState | null) => {
   if (!state) return undefined;
   const placed = state.active ? state.last_placement : null;
@@ -120,10 +102,6 @@ const resolutionHint = (state: PluginState | null) => {
     ? `Crosshair centered for ${placed[0]}x${placed[1]} (manual)`
     : `Fixed: next crosshair is centered for ${state.resolution_mode}`;
 };
-
-// Delay before acting on a menu choice, so the menu can close before the panel
-// re-renders (re-rendering while it closed made Steam's dropdown pop open again).
-const MENU_ACTION_DELAY_MS = 300;
 
 const styleLabel = (style: Style) => (style === "box" ? "Box" : "Dot");
 
@@ -177,24 +155,19 @@ function Content() {
         </div>
       </PanelSectionRow>
       <PanelSectionRow>
-        <ChoiceItem
+        <CycleItem
           label="Screen resolution"
           description={resolutionHint(state)}
           options={RESOLUTION_OPTIONS}
           value={state?.resolution_mode ?? "auto"}
-          onChoose={(mode) => {
-            // Show the new choice right away, act on it once the menu has closed
+          onChange={(mode) => {
             setState((prev) => (prev ? { ...prev, resolution_mode: mode } : prev));
-            setTimeout(
-              () =>
-                run(async () => {
-                  const result = await setResolutionMode(mode, ...fallbackSize());
-                  return result
-                    ? describe("Crosshair re-placed", result)
-                    : `Screen resolution set to ${mode}`;
-                }, "Failed to set screen resolution."),
-              MENU_ACTION_DELAY_MS
-            );
+            run(async () => {
+              const result = await setResolutionMode(mode, ...fallbackSize());
+              return result
+                ? describe("Crosshair re-placed", result)
+                : `Screen resolution set to ${mode}`;
+            }, "Failed to set screen resolution.");
           }}
         />
       </PanelSectionRow>
@@ -258,20 +231,16 @@ function Content() {
         <Field label="Correction">{state ? `${state.nudge_x}, ${state.nudge_y}` : "-"}</Field>
       </PanelSectionRow>
       <PanelSectionRow>
-        <ChoiceItem
+        <CycleItem
           label="Nudge step"
           options={STEP_OPTIONS}
           value={step}
-          onChoose={(newStep) => {
+          onChange={(newStep) => {
             setState((prev) => (prev ? { ...prev, nudge_step: newStep } : prev));
-            setTimeout(
-              () =>
-                run(async () => {
-                  await setNudgeStep(newStep);
-                  return `Nudge step set to ${newStep} px`;
-                }, "Failed to set nudge step."),
-              MENU_ACTION_DELAY_MS
-            );
+            run(async () => {
+              await setNudgeStep(newStep);
+              return `Nudge step set to ${newStep} px`;
+            }, "Failed to set nudge step.");
           }}
         />
       </PanelSectionRow>
