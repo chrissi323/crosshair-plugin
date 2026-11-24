@@ -23,6 +23,7 @@ interface PluginState {
   active: boolean;
   offset_x: number | null;
   offset_y: number | null;
+  last_placement: [number, number, string] | null; // [width, height, source]
 }
 
 const getState = callable<[], PluginState>("get_state");
@@ -55,6 +56,24 @@ const fallbackSize = (): [number, number] => {
 
 const describe = (action: string, [width, height, source, restarted]: PlaceResult) =>
   `${action} for ${width}x${height} (${source})` + (restarted ? ", overlay restarted!" : "!");
+
+// Text under the resolution dropdown explaining what the current choice does
+const resolutionHint = (state: PluginState | null) => {
+  if (!state) return undefined;
+  const placed = state.active ? state.last_placement : null;
+  if (state.resolution_mode === "auto") {
+    return placed
+      ? `Crosshair centered for ${placed[0]}x${placed[1]} (${placed[2]})`
+      : "Uses the resolution reported by gamescope";
+  }
+  return placed
+    ? `Crosshair centered for ${placed[0]}x${placed[1]} (manual)`
+    : `Fixed: next crosshair is centered for ${state.resolution_mode}`;
+};
+
+// Delay before acting on a dropdown choice, so the dropdown menu can close
+// before the panel re-renders (otherwise it can pop open again).
+const DROPDOWN_ACTION_DELAY_MS = 300;
 
 const styleLabel = (style: Style) => (style === "box" ? "Box" : "Dot");
 
@@ -110,16 +129,24 @@ function Content() {
       <PanelSectionRow>
         <DropdownItem
           label="Screen resolution"
+          description={resolutionHint(state)}
           rgOptions={RESOLUTION_OPTIONS}
           selectedOption={state?.resolution_mode ?? "auto"}
-          onChange={(option) =>
-            run(async () => {
-              const result = await setResolutionMode(option.data, ...fallbackSize());
-              return result
-                ? describe("Crosshair re-placed", result)
-                : `Screen resolution set to ${option.data}`;
-            }, "Failed to set screen resolution.")
-          }
+          onChange={(option) => {
+            if (option.data === state?.resolution_mode) return;
+            // Show the new choice right away, act on it once the menu has closed
+            setState((prev) => (prev ? { ...prev, resolution_mode: option.data } : prev));
+            setTimeout(
+              () =>
+                run(async () => {
+                  const result = await setResolutionMode(option.data, ...fallbackSize());
+                  return result
+                    ? describe("Crosshair re-placed", result)
+                    : `Screen resolution set to ${option.data}`;
+                }, "Failed to set screen resolution."),
+              DROPDOWN_ACTION_DELAY_MS
+            );
+          }}
         />
       </PanelSectionRow>
       {(["box", "dot"] as Style[]).map((style) => (
@@ -186,12 +213,18 @@ function Content() {
           label="Nudge step"
           rgOptions={STEP_OPTIONS}
           selectedOption={step}
-          onChange={(option) =>
-            run(async () => {
-              await setNudgeStep(option.data);
-              return `Nudge step set to ${option.data} px`;
-            }, "Failed to set nudge step.")
-          }
+          onChange={(option) => {
+            if (option.data === step) return;
+            setState((prev) => (prev ? { ...prev, nudge_step: option.data } : prev));
+            setTimeout(
+              () =>
+                run(async () => {
+                  await setNudgeStep(option.data);
+                  return `Nudge step set to ${option.data} px`;
+                }, "Failed to set nudge step."),
+              DROPDOWN_ACTION_DELAY_MS
+            );
+          }}
         />
       </PanelSectionRow>
       <PanelSectionRow>

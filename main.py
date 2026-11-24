@@ -27,6 +27,8 @@ class Plugin:
         self.current_offset_x = None
         self.current_offset_y = None
         self.settings = dict(DEFAULT_SETTINGS)
+        # [width, height, source] of the last placement, shown under the resolution dropdown
+        self.last_placement = None
         # mangoapp keeps the drawing area of the display it was started on, so after
         # switching to a larger display it must be restarted. Remembers, per mangoapp
         # PID, the resolution it is known to be valid for.
@@ -237,6 +239,7 @@ offset_y={offset_y}"""
             decky.logger.warning(f"Using frontend fallback resolution {resolution}")
 
         width, height = resolution
+        self.last_placement = [width, height, source]
         center_x, center_y = self.compute_offsets(style, width, height)
         self.current_offset_x = center_x + self.settings["nudge_x"]
         self.current_offset_y = center_y + self.settings["nudge_y"]
@@ -263,6 +266,7 @@ offset_y={offset_y}"""
             "active": self.current_offset_x is not None,
             "offset_x": self.current_offset_x,
             "offset_y": self.current_offset_y,
+            "last_placement": self.last_placement,
         }
 
     async def make_crosshair(self, style: str, fallback_width: int, fallback_height: int) -> list:
