@@ -1,9 +1,11 @@
 import {
   ButtonItem,
-  DropdownItem,
   Field,
+  Menu,
+  MenuItem,
   PanelSection,
   PanelSectionRow,
+  showContextMenu,
   staticClasses,
 } from "@decky/ui";
 import { callable, definePlugin } from "@decky/api";
@@ -47,10 +49,53 @@ const RESOLUTION_OPTIONS = [
 ];
 const STEP_OPTIONS = [1, 5, 10, 50].map((n) => ({ data: n, label: `${n} px` }));
 
-// Steam's dropdown keeps its own selection and doesn't reliably follow
-// `selectedOption`, so the shown value is rendered from our state instead.
-const optionLabel = (options: { data: unknown; label: string }[], value: unknown) =>
+interface Option<T> {
+  data: T;
+  label: string;
+}
+
+const optionLabel = <T,>(options: Option<T>[], value: T) =>
   options.find((option) => option.data === value)?.label ?? String(value);
+
+// A button that shows the current value and opens a menu to pick another one.
+// Used instead of Steam's DropdownItem, whose label only updated after the
+// panel was re-focused, not when the value changed.
+function ChoiceItem<T>(props: {
+  label: string;
+  description?: string;
+  options: Option<T>[];
+  value: T;
+  onChoose(value: T): void;
+}) {
+  const { label, description, options, value, onChoose } = props;
+  return (
+    <ButtonItem
+      layout="inline"
+      label={label}
+      description={description}
+      onClick={(event) =>
+        showContextMenu(
+          <Menu label={label}>
+            {options.map((option) => (
+              <MenuItem
+                key={String(option.data)}
+                selected={option.data === value}
+                onSelected={() => {
+                  if (option.data !== value) onChoose(option.data);
+                }}
+              >
+                {option.label}
+              </MenuItem>
+            ))}
+          </Menu>,
+          event.currentTarget ?? window
+        )
+      }
+    >
+      {optionLabel(options, value)}
+    </ButtonItem>
+  );
+}
 
 // Screen size as seen by the Steam client; only used by the backend if
 // gamescope can't be queried.
@@ -76,9 +121,9 @@ const resolutionHint = (state: PluginState | null) => {
     : `Fixed: next crosshair is centered for ${state.resolution_mode}`;
 };
 
-// Delay before acting on a dropdown choice, so the dropdown menu can close
-// before the panel re-renders (otherwise it can pop open again).
-const DROPDOWN_ACTION_DELAY_MS = 300;
+// Delay before acting on a menu choice, so the menu can close before the panel
+// re-renders (re-rendering while it closed made Steam's dropdown pop open again).
+const MENU_ACTION_DELAY_MS = 300;
 
 const styleLabel = (style: Style) => (style === "box" ? "Box" : "Dot");
 
@@ -132,25 +177,23 @@ function Content() {
         </div>
       </PanelSectionRow>
       <PanelSectionRow>
-        <DropdownItem
+        <ChoiceItem
           label="Screen resolution"
           description={resolutionHint(state)}
-          rgOptions={RESOLUTION_OPTIONS}
-          selectedOption={state?.resolution_mode ?? "auto"}
-          renderButtonValue={() => optionLabel(RESOLUTION_OPTIONS, state?.resolution_mode ?? "auto")}
-          onChange={(option) => {
-            if (option.data === state?.resolution_mode) return;
+          options={RESOLUTION_OPTIONS}
+          value={state?.resolution_mode ?? "auto"}
+          onChoose={(mode) => {
             // Show the new choice right away, act on it once the menu has closed
-            setState((prev) => (prev ? { ...prev, resolution_mode: option.data } : prev));
+            setState((prev) => (prev ? { ...prev, resolution_mode: mode } : prev));
             setTimeout(
               () =>
                 run(async () => {
-                  const result = await setResolutionMode(option.data, ...fallbackSize());
+                  const result = await setResolutionMode(mode, ...fallbackSize());
                   return result
                     ? describe("Crosshair re-placed", result)
-                    : `Screen resolution set to ${option.data}`;
+                    : `Screen resolution set to ${mode}`;
                 }, "Failed to set screen resolution."),
-              DROPDOWN_ACTION_DELAY_MS
+              MENU_ACTION_DELAY_MS
             );
           }}
         />
@@ -215,21 +258,19 @@ function Content() {
         <Field label="Correction">{state ? `${state.nudge_x}, ${state.nudge_y}` : "-"}</Field>
       </PanelSectionRow>
       <PanelSectionRow>
-        <DropdownItem
+        <ChoiceItem
           label="Nudge step"
-          rgOptions={STEP_OPTIONS}
-          selectedOption={step}
-          renderButtonValue={() => optionLabel(STEP_OPTIONS, step)}
-          onChange={(option) => {
-            if (option.data === step) return;
-            setState((prev) => (prev ? { ...prev, nudge_step: option.data } : prev));
+          options={STEP_OPTIONS}
+          value={step}
+          onChoose={(newStep) => {
+            setState((prev) => (prev ? { ...prev, nudge_step: newStep } : prev));
             setTimeout(
               () =>
                 run(async () => {
-                  await setNudgeStep(option.data);
-                  return `Nudge step set to ${option.data} px`;
+                  await setNudgeStep(newStep);
+                  return `Nudge step set to ${newStep} px`;
                 }, "Failed to set nudge step."),
-              DROPDOWN_ACTION_DELAY_MS
+              MENU_ACTION_DELAY_MS
             );
           }}
         />
