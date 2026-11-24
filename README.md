@@ -25,6 +25,10 @@ If you switch between the built-in screen and an external display, select the cr
 - Offset adjustments are handled dynamically, and the configuration is updated automatically.
 - NOTE: this may conflict with any MangoHUD overrides you have set, or override plugins such as MangoPeel.
 
+## Download
+
+Ready-to-install zips are attached to each [GitHub release](https://github.com/chrissi323/crosshair-plugin/releases). Install one on the Steam Deck by enabling Developer Mode in Decky Loader's settings and using **Install Plugin from ZIP File** (or install it from the release asset's URL).
+
 ## Building
 
 Requirements: [pnpm](https://pnpm.io/) and Python 3.
