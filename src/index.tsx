@@ -150,7 +150,7 @@ function Content() {
   return (
     <PanelSection title="Crosshair Plugin">
       <PanelSectionRow>
-        <div>
+        <div style={{ fontSize: "12px", lineHeight: "1.3", opacity: 0.8 }}>
           NOTE: This plugin works by replacing the performance overlay with text that acts as a crosshair in your game. Currently you can not have both a performance overlay and crosshairs at the same time. To restore performance overlay, simply toggle one of the 4 levels from the QAM tab.
         </div>
       </PanelSectionRow>
