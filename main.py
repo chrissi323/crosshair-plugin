@@ -4,6 +4,7 @@ import os
 import re
 import signal
 import subprocess
+import time
 import decky
 
 # Half the rendered crosshair text size in pixels; the crosshair is placed at
@@ -65,6 +66,7 @@ class Plugin:
         """Terminate mangoapp; it runs as a systemd user service and is restarted
         automatically, picking up the current display size. Returns the new PID or None."""
         decky.logger.info(f"Restarting mangoapp (PID {pid}) for the new display size")
+        t_start = time.monotonic()
         try:
             os.kill(pid, signal.SIGTERM)
         except ProcessLookupError:
@@ -73,7 +75,9 @@ class Plugin:
             await asyncio.sleep(0.25)
             new_pid = self.find_mangoapp_pid()
             if new_pid is not None and new_pid != pid:
-                decky.logger.info(f"mangoapp restarted with PID {new_pid}")
+                decky.logger.info(
+                    f"mangoapp restarted with PID {new_pid} after {1000 * (time.monotonic() - t_start):.0f} ms"
+                )
                 return new_pid
         decky.logger.warning("mangoapp did not come back after restart")
         return None
@@ -228,7 +232,9 @@ offset_y={offset_y}"""
         frontend's fallback_width/height. Returns [width, height, source, mangoapp_restarted].
         """
         style = self.settings["style"]
+        t_start = time.monotonic()
         detected = self.get_gamescope_resolution()
+        t_detected = time.monotonic()
         override = self.parse_resolution_mode(self.settings["resolution_mode"])
         if isinstance(override, tuple):
             resolution, source = override, "manual"
@@ -246,6 +252,7 @@ offset_y={offset_y}"""
         # Write first: a restarted mangoapp reads the config on startup, and while
         # it is down the config path could not be looked up.
         await self.write_crosshair_config(*CROSSHAIR_TEXT[style], self.current_offset_x, self.current_offset_y)
+        t_written = time.monotonic()
 
         # The restart depends on the real display size, not on a manual override.
         restarted = False
@@ -255,6 +262,12 @@ offset_y={offset_y}"""
             if new_pid is not None:
                 self.mangoapp_resolution[new_pid] = detected
                 restarted = True
+        t_end = time.monotonic()
+        decky.logger.info(
+            f"Timing place_crosshair: detect {1000 * (t_detected - t_start):.0f} ms, "
+            f"write {1000 * (t_written - t_detected):.0f} ms, "
+            f"restart check/restart {1000 * (t_end - t_written):.0f} ms (restarted={restarted})"
+        )
         return [width, height, source, restarted]
 
     # ------------------------------------------------------------------ #
@@ -313,9 +326,11 @@ offset_y={offset_y}"""
             return
         self.current_offset_x += int(x_delta)
         self.current_offset_y += int(y_delta)
+        t_start = time.monotonic()
         await self.write_crosshair_config(
             *CROSSHAIR_TEXT[self.settings["style"]], self.current_offset_x, self.current_offset_y
         )
+        decky.logger.info(f"Timing adjust_crosshair_offset: write {1000 * (time.monotonic() - t_start):.0f} ms")
 
     async def _main(self):
         self.load_settings()
