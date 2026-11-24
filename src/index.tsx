@@ -44,12 +44,12 @@ interface Option<T> {
 
 const RESOLUTION_OPTIONS: Option<string>[] = [
   { data: "auto", label: "Auto-detect", short: "Auto" },
-  { data: "1280x800", label: "1280 x 800 (Steam Deck)", short: "800p" },
+  { data: "1280x800", label: "1280 x 800", short: "800p" },
   { data: "1920x1080", label: "1920 x 1080", short: "1080p" },
   { data: "1920x1200", label: "1920 x 1200", short: "1200p" },
   { data: "2560x1440", label: "2560 x 1440", short: "1440p" },
   { data: "2560x1600", label: "2560 x 1600", short: "1600p" },
-  { data: "3840x2160", label: "3840 x 2160 (4K)", short: "4K" },
+  { data: "3840x2160", label: "3840 x 2160", short: "4K" },
 ];
 const STEP_OPTIONS: Option<number>[] = [1, 5, 10, 50].map((n) => ({
   data: n,
